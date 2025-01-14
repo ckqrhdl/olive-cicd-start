@@ -1,12 +1,9 @@
-piVersion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: istory
 spec:
-  volumes:
-    - name: application-config
-      configMap:
-        name: istory-app-config
+  replicas: 5
   selector:
     matchLabels:
       app: istory
@@ -15,6 +12,22 @@ spec:
       labels:
         app: istory
     spec:
+      volumes:
+        - name: application-config
+          configMap:
+            name: istory-app-config
+      initContainers:
+        - name: check-mysql-ready
+          image: mysql:8.0
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: istory-db-secret
+                  key: MYSQL_PASSWORD
+          command: ['sh',
+                    '-c',
+                    'until mysqladmin ping -u dangtong -p${MYSQL_PASSWORD} -h mysql-svc.default; do echo waiting for database; sleep 2; done;']
       containers:
       - name: istory
         image: dangtong76/istory
@@ -29,7 +42,7 @@ spec:
                 key: MYSQL_PASSWORD
           - name: spring.datasource.username
             valueFrom:
-              secretKeyRef:
+              configMapKeyRef:
                 name: istory-db-config
                 key: MYSQL_USER
         readinessProbe:
@@ -41,9 +54,9 @@ spec:
           successThreshold: 2
           failureThreshold: 3
           periodSeconds: 10
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
+        # resources:
+        #   limits:
+        #     memory: "128Mi"
+        #     cpu: "500m"
         ports:
         - containerPort: 8080
